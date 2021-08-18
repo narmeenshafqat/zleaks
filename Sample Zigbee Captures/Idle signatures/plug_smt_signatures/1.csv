@@ -1,0 +1,3 @@
+Timestamp,Time,Source,Destination,Packet_length,Payload_length,Sequence_number,Src_device,Dst_device,Burst,Gap
+1611702034,2021-01-27 04:00:34,0x00000d0f,0x00000000,53,16,163,ZR,ZC,3,601
+1611702034,2021-01-27 04:00:34,0x00000000,0x00000d0f,47,8,79,ZC,ZR,3,601
