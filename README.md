@@ -18,4 +18,4 @@ In order to identify any known device, it is required to first extract the devic
 
 The address mapper file determines the logical device type of the target device and binds it with Network address, MAC address and Manufacturer identifier, that aids in device analysis.
 
-Note: You might need to import pandas, numpy and pyshark if not already installed.
+Note: You might need to import pandas, numpy and pyshark if not already installed..
