@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import warnings
 import pyshark
+import utils
 import glob
 import os
 
@@ -94,7 +95,7 @@ class SignatureExtractor():
                 sig_1_packets = len(sig1)
                 sig_2_packets = len(sig2)
 
-                if sig_1_packets == sig_2_packets and sig_1_packets > 4:
+                if sig_1_packets == sig_2_packets:# and sig_1_packets > 4:
                     eq = (sig1[self.cols] == sig2[self.cols]).all(axis=1)
                     eq = (sig1[self.cols].sort_values([ 'Payload_length'], 
                                                         ignore_index=True) == sig2[self.cols].sort_values([ 'Payload_length'], 
@@ -132,7 +133,7 @@ class SignatureExtractor():
 
         self.sig_df = zr_device_df.copy() if len(zr_device_df) > 1 else self.sig_df
 
-        self.key = 'Timestamp' if len(zr_device_df) > 1 else 'Burst'
+        self.key = 'Timestamp' if len(zr_device_df) > 1 and not utils.checker(self.sig_df) else 'Burst'
 
         # Group based on key (burst or timestamp if device is philips)
         self.group_sig = self.sig_df.groupby(self.key)[self.sig_df.columns]
@@ -277,6 +278,14 @@ def extract_data(pcapfile, addr=None):
     return packets
 
 def signatures_csv_generator(filename, signatures):
+    
+    if not os.path.exists("signatures"):
+        os.mkdir("signatures")
+
+    os.chdir(os.path.join(os.getcwd(), "signatures"))
+
+
+
     folder_name = filename.split('.')[0] + "_signatures"
 
     if not os.path.exists(folder_name):
@@ -285,6 +294,8 @@ def signatures_csv_generator(filename, signatures):
     for k, sig in enumerate(signatures['signatures']):
         path = os.path.join(folder_name, f"{k}.csv")
         sig.to_csv(path, index=False)
+
+    os.chdir('..')
 
 def start(pcapfile):
 

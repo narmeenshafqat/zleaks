@@ -94,8 +94,13 @@ class Mapper():
             displayfilter = "(zbee_nwk.src_route == 1)"
             route_1_devices = pyshark.FileCapture(pcapfile, display_filter=displayfilter)
 
-            potential_zr = {packet.zbee_nwk.dst for packet in route_1_devices if packet.zbee_nwk.dst not in self.devices['ZED']}
-
+            try:
+                potential_zr = {packet.zbee_nwk.dst for packet in route_1_devices if packet.zbee_nwk.dst not in self.devices['ZED']}
+            except:
+                pass
+            finally:
+                route_1_devices.close()
+                
             for zr in potential_zr:
                 displayfilter = f"(wpan.cmd == 0x04) && (wpan.src16 == {zr})"
                 zr_devices = pyshark.FileCapture(pcapfile, display_filter=displayfilter)

@@ -43,6 +43,11 @@ class Comparator():
 
         self.signatures = dict()
 
+        if not os.path.exists("signatures"):
+            return
+
+        os.chdir(os.path.join(os.getcwd(), "signatures"))
+
         for folder in glob.glob('*_signatures'):
             path = os.path.join(folder, "*.csv")
             dfs = [pd.read_csv(csvfile) for csvfile in glob.glob(path)]
@@ -55,6 +60,8 @@ class Comparator():
 
         self.found_sig_dfs = {k: [] for k in self.signatures}
     
+        os.chdir('..')
+
     # Loaded signatures are compared with the signature of the current file (or device data)
     def compare_signatures(self):
 
@@ -99,14 +106,14 @@ class Comparator():
         final_conclusion =  f"{device_name}: signature correlated with " \
                             if len(select_sigs) \
                             else \
-                            "{device_name}: signature probably correlated with " \
+                            f"{device_name}: signature probably correlated with " \
                             if len(probable_sigs) \
                             else \
                             ""
 
         for k, sig in enumerate(select):
             if k == len(select) - 1:
-                final_conclusion += f"{sig}"
+                final_conclusion += f"{sig}\n"
             elif k == len(select) - 2:
                 final_conclusion += f"{sig} and "
             else:

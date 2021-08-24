@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import warnings
 import pyshark
+import utils
 import glob
 
 
@@ -79,12 +80,19 @@ class PackerAnalyser():
     
     # Detect sensor packets
     def detect_sensor_type(self, x):
-        if len(x[(x['Payload_length'] == 17) & (x['Packet_length'] == 54)]) == 3:
-            return "Audio Sensor"
-        if len(x[(x['Payload_length'] == 17) & (x['Packet_length'] == 54)]) == 2:
-            return "Flood Sensor"
-        if len(x[(x['Payload_length'] == 17) & (x['Packet_length'] == 54)]) == 1:
-            return "Motion Sensor|Door Sensor"
+        cd_54_17 = x[ (x['Payload_length'] == 17) & (x['Packet_length'] == 54) & x['Src_device'].str.contains('ZC')]
+        dc_54_17 = x[ (x['Payload_length'] == 17) & (x['Packet_length'] == 54) & x['Dst_device'].str.contains('ZC')]
+        cd_48_11 = x[ (x['Payload_length'] == 11) & (x['Packet_length'] == 48) & x['Src_device'].str.contains('ZC')]
+
+        if len(dc_54_17) and not len(cd_54_17) and not len(cd_48_11):
+            sensor_packets = len(dc_54_17)
+
+            if sensor_packets == 3:
+                return "Audio Sensor"
+            if sensor_packets == 2:
+                return "Flood Sensor"
+            if sensor_packets == 1:
+                return "Motion Sensor|Door Sensor"
         return None
 
     # Detect lock packets
@@ -96,8 +104,14 @@ class PackerAnalyser():
     # Detect "bulb on" packets
     def detect_bulb_on_packets(self, x):
 
-        jk_48_11 = x[(x['Payload_length'] == 11) & (x['Packet_length'] == 48) & (x['Src_device'].str.contains('ZR')) & 
-                    (x['Dst_device'].str.contains('ZR'))]
+        jk_48_11 = x[   (x['Payload_length'] == 11) & (x['Packet_length'] == 48) & (x['Src_device'].str.contains('ZR')) & 
+                        (x['Dst_device'].str.contains('ZR'))]
+
+        jb_12 = x[  (x['Payload_length'] == 12) & (x['Src_device'].str.contains('ZR')) &
+                    (x['Destination'] == '0x0000fffd')]
+
+        jb_14 = x[  (x['Payload_length'] == 14) & (x['Src_device'].str.contains('ZR')) &
+                    (x['Destination'] == '0x0000fffd')]
 
         if len(jk_48_11):
             src = jk_48_11['Source'].iloc[0]
@@ -115,9 +129,37 @@ class PackerAnalyser():
             if not (len(kj_62_25) or len(kj_52_15) or len(kb_20)):
                 self.bulb_on.add(x.iloc[0, 0])
 
+        if len(jb_12):
+            self.bulb_on.add(x.iloc[0, 0])
+
+        if len(jb_14):
+            self.bulb_off.add(x.iloc[0, 0])
+
     # Detect bulb/plugin packets
     def detect_bulb_packets(self, x):
-    
+
+        x = x.copy()
+
+        # Rule 4
+        if not utils.checker(x):
+            x.groupby('Timestamp').apply(lambda x: self.detect_bulb_on_packets(x))
+
+        # Convert 0x00000001, 0x00000002, 0x00000003, 0x00000004, 0x00000005 to ZC if they exist
+        for i, row in x.iterrows():
+            if  str(row['Source']) == '0x00000001' or \
+                str(row['Source']) == '0x00000002' or \
+                str(row['Source']) == '0x00000003' or \
+                str(row['Source']) == '0x00000004' or \
+                str(row['Source']) == '0x00000005':
+                x.at[i, 'Src_device'] = 'ZC'
+
+            if  str(row['Destination']) == '0x00000001' or \
+                str(row['Destination']) == '0x00000002' or \
+                str(row['Destination']) == '0x00000003' or \
+                str(row['Destination']) == '0x00000004' or \
+                str(row['Destination']) == '0x00000005':
+                x.at[i, 'Dst_device'] = 'ZC'
+
         cd_48_11 = x[(x['Payload_length'] == 11) & (x['Packet_length'] == 48) & x['Src_device'].str.contains('ZC')]
         dc_49_12 = x[(x['Payload_length'] == 12) & (x['Packet_length'] == 49) & x['Dst_device'].str.contains('ZC')]
         cd_51_14 = x[   (x['Payload_length'] == 14) & (x['Packet_length'] == 51) & x['Src_device'].str.contains('ZC') &
@@ -125,17 +167,20 @@ class PackerAnalyser():
         db_54_17 = x[(x['Payload_length'] == 17) & (x['Packet_length'] == 54) &
                     ((x['Destination'] == '0x0000fffc') | (x['Destination'] == '0x0000fffd') | (x['Destination'] == '0x0000ffff'))]
         cd_50_11 = x[(x['Payload_length'] == 11) & (x['Packet_length'] == 50) & x['Src_device'].str.contains('ZC')]
+        cd_52_11 = x[(x['Payload_length'] == 11) & (x['Packet_length'] == 52) & x['Src_device'].str.contains('ZC')]
         db_20 = x[  (x['Payload_length'] == 20) & 
                     ((x['Destination'] == '0x0000fffc') | (x['Destination'] == '0x0000fffd') | (x['Destination'] == '0x0000ffff'))]
         cd_dc_13 = x[(x['Payload_length'] == 13) & ((x['Src_device'].str.contains('ZC')) | (x['Dst_device'].str.contains('ZC')))]
+        dc_11 = x[(x['Payload_length'] == 11) & (x['Dst_device'].str.contains('ZC'))]
         cd_15 = x[(x['Payload_length'] == 15) & (x['Src_device'].str.contains('ZC'))]
+        dc_12 = x[(x['Payload_length'] == 12) & (x['Dst_device'].str.contains('ZC'))]
         dc_15 = x[(x['Payload_length'] == 15) & (x['Dst_device'].str.contains('ZC'))]
-        
-        # Rule 4
-        x.groupby('Timestamp').apply(lambda x: self.detect_bulb_on_packets(x))
+        dc_21 = x[(x['Payload_length'] == 21) & (x['Dst_device'].str.contains('ZC'))]
+        dc_23 = x[(x['Payload_length'] == 23) & (x['Dst_device'].str.contains('ZC'))]
+        dc_26 = x[(x['Payload_length'] == 26) & (x['Dst_device'].str.contains('ZC'))]
 
         # Rule 2
-        if  (len(cd_48_11) or len(cd_50_11)) and \
+        if  ((len(cd_48_11) or len(cd_50_11)) or len(cd_52_11)) and \
             not len(dc_49_12) and \
             not len(db_20) and \
             (len(cd_dc_13) or len(dc_15)):
@@ -143,10 +188,15 @@ class PackerAnalyser():
             if len(cd_15):
                 return 'Bulb color control'
             return 'Bulb|Plug'
+
+        if  len(cd_15) and not (len(dc_12) or len(db_20)) and \
+            (len(dc_21) or len(dc_23) or len(dc_26)):
+            return 'Bulb color control'
         
         # Rule 3
         if  len(cd_51_14) and \
-            not len(db_54_17):
+            not len(db_54_17) and \
+            not len(dc_11):
             return "Bulb level control"
 
         return None
@@ -252,6 +302,7 @@ class PackerAnalyser():
         self.bulb_df = self.df.copy()
 
         self.bulb_on = set()
+        self.bulb_off = set()
 
         # Group based on burst to detect bulb packets
         group_bulb = self.bulb_df.groupby('Burst').apply(lambda x: self.detect_bulb_packets(x))
@@ -259,6 +310,9 @@ class PackerAnalyser():
 
         for b in self.bulb_on:
             self.bulb_df.loc[self.bulb_df['Timestamp'] == b, 'Bulb'] = "Bulb on"
+
+        for b in self.bulb_off:
+            self.bulb_df.loc[self.bulb_df['Timestamp'] == b, 'Bulb'] = "Bulb off"
 
         self.bulb_df = self.bulb_df[self.bulb_df['Bulb'].notnull()].copy()
 
@@ -396,10 +450,12 @@ def extract_data(pcapfile, addr=None):
 # A function to print events or signature matches
 def print_events(dfs: dict, conclusions: str):
     
+    printed = False
+    
     if conclusions != '':
         print("****Detected using periodic reporting signatures****")
         print(conclusions)
-        print("\n")
+        printed = True
 
     for key, df in dfs.items():
         if type(df) == DataFrame:
@@ -409,8 +465,9 @@ def print_events(dfs: dict, conclusions: str):
                 df.drop_duplicates(['Burst'], keep='first', inplace=True)
             dfs[key] = df[df[key].notnull()].copy()
 
-    if  dfs['Sensor'] is not None and dfs['Lock'] is not None and dfs['Bulb'] is not None and \
-        len(dfs['Sensor']) and len(dfs['Lock']) and len(dfs['Bulb']):
+    if  (dfs['Sensor'] is not None and len(dfs['Sensor'])) or \
+        (dfs['Lock'] is not None and len(dfs['Lock'])) or \
+        (dfs['Bulb'] is not None and len(dfs['Bulb'])):
         print("****Detected using Command inference****")
 
     if type(dfs['Sensor']) == DataFrame:
@@ -425,12 +482,14 @@ def print_events(dfs: dict, conclusions: str):
                 else:
                     action = 'audio'
 
-                print(f"{row[-1]['Manufacturer']} {row[-1]['Sensor']} detected {action} at {row[-1]['Time']}")
+                print(f"{row[-1]['Device']}: {row[-1]['Manufacturer']} {row[-1]['Sensor']} detected {action} at {row[-1]['Time']}")
+        printed = True
 
     if type(dfs['Lock']) == DataFrame:
         for k, row in enumerate(dfs['Lock'].iterrows()):
             if row[-1]['Lock']:
-                print(f"{row[-1]['Manufacturer']} lock locked/unlocked at {row[-1]['Time']}")
+                print(f"{row[-1]['Device']}: {row[-1]['Manufacturer']} lock locked/unlocked at {row[-1]['Time']}")
+        printed = True
 
     if type(dfs['Bulb']) == DataFrame:
 
@@ -438,7 +497,11 @@ def print_events(dfs: dict, conclusions: str):
             action = 'switched on/off ' if row[-1]['Bulb'] == 'Bulb|Plug' else ''
 
             if row[-1]['Bulb']:
-                print(f"{row[-1]['Manufacturer']} {row[-1]['Bulb']} {action}at {row[-1]['Time']}")
+                print(f"{row[-1]['Device']}: {row[-1]['Manufacturer']} {row[-1]['Bulb']} {action}at {row[-1]['Time']}")
+        printed = True
+
+    if not printed:
+        print("\nNo event detected from both modules!")
 
 def start(pcapfile):
 
@@ -509,18 +572,21 @@ def start(pcapfile):
         # If device is detected as sensor then move on to next device
         # Same goes for other detections too down below
         if len(sensor_df):
+            sensor_df['Device'] = addr
             dfs['Sensor'].append(sensor_df)
             continue
 
         lock_df = pa.detect_locks()
         
         if len(lock_df):
+            lock_df['Device'] = addr
             dfs['Lock'].append(lock_df)
             continue
 
         bulb_df = pa.detect_bulbs()
 
         if len(bulb_df):
+            bulb_df['Device'] = addr
             dfs['Bulb'].append(bulb_df)
             continue
 
