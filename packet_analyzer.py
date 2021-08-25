@@ -10,6 +10,7 @@ import warnings
 import pyshark
 import utils
 import glob
+import os
 
 
 class PackerAnalyser():
@@ -447,6 +448,16 @@ def extract_data(pcapfile, addr=None):
 
     return packets
 
+def grouping_bulbs(x):
+    global idx
+    global comp_val
+    if x == comp_val:
+        return idx
+    else:
+        idx += 1
+        comp_val = x
+        return idx
+
 # A function to print events or signature matches
 def print_events(dfs: dict, conclusions: str):
     
@@ -460,7 +471,14 @@ def print_events(dfs: dict, conclusions: str):
     for key, df in dfs.items():
         if type(df) == DataFrame:
             if key == 'Bulb':
-                df.drop_duplicates(['Burst', key], keep='first', inplace=True)
+                global idx
+                global comp_val
+                comp_val = df[key].iloc[0]
+                idx = 0
+                df['Group'] = df[key].apply(lambda x: grouping_bulbs(x))
+                # df.drop_duplicates(['Burst', key], keep='first', inplace=True)
+                print(df)
+                df.drop_duplicates(['Group'], keep='first', inplace=True)
             else:
                 df.drop_duplicates(['Burst'], keep='first', inplace=True)
             dfs[key] = df[df[key].notnull()].copy()
@@ -543,7 +561,11 @@ def start(pcapfile):
                                                         else None
                                                         , axis=1)
 
-    main_df.to_csv(f"uncleaned_{pcapfile.split('.')[0]}.csv", index=False)
+    if not os.path.exists("uncleaned"):
+        os.mkdir("uncleaned")
+
+    uncleaned_files_path = os.path.join(os.getcwd(), 'uncleaned')
+    main_df.to_csv(os.path.join(uncleaned_files_path, f"uncleaned_{pcapfile.split('.')[0]}.csv"), index=False)
 
     for addr in broadcast_addresses:
         if addr in addresses:
@@ -594,7 +616,8 @@ def start(pcapfile):
 
         #--------------- Module 2 ---------------#
 
-        comparator = Comparator(addr_df.drop(['Discovery', 'Mac', 'Manufacturer'], axis = 1))
+        # comparator = Comparator(addr_df.drop(['Discovery', 'Mac', 'Manufacturer'], axis = 1))
+        comparator = Comparator(addr_df.drop(['Discovery', 'Manufacturer'], axis = 1))
         conclusions += comparator.start_comparator(addr)
 
         #--------------- END ---------------#
@@ -606,11 +629,16 @@ def start(pcapfile):
                     'Bulb': None
                 }
 
+    if not os.path.exists("cleaned"):
+        os.mkdir("cleaned")
+
+    cleaned_files_path = os.path.join(os.getcwd(), 'cleaned')
+
     for key, df in dfs.items():
         if df:
             final_df[key] = pd.concat(df) if len(df) else df[0]
             final_df[key].sort_values('Timestamp', ascending=True, inplace=True)
-            final_df[key].to_csv(f"{key}_{pcapfile.split('.')[0]}.csv", index=False)
+            final_df[key].to_csv(os.path.join(cleaned_files_path, f"{key}_{pcapfile.split('.')[0]}.csv"), index=False)
 
     print_events(final_df, conclusions)
     print()

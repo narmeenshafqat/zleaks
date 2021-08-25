@@ -269,7 +269,14 @@ def extract_data(pcapfile, addr=None):
                                                 if 'zbee_nwk' in packet
                                                 else None
                                                 for packet in pcap],
+
+                            # Ignore mac addr if no zbee_nwk layer
+                            'Mac': [packet.zbee_nwk.zbee_sec_src64
+                                    if 'zbee_nwk' in packet
+                                    else None
+                                    for packet in pcap],
                         }
+
     except:
         pass
     finally:
@@ -283,8 +290,6 @@ def signatures_csv_generator(filename, signatures):
         os.mkdir("signatures")
 
     os.chdir(os.path.join(os.getcwd(), "signatures"))
-
-
 
     folder_name = filename.split('.')[0] + "_signatures"
 
@@ -310,8 +315,13 @@ def start(pcapfile):
     addresses, man_dict = mapper.get_all_devices(pcapfile)
     main_df = mapper.add_device_type_to_data()
 
+    if not os.path.exists("uncleaned"):
+        os.mkdir("uncleaned")
+
+    uncleaned_files_path = os.path.join(os.getcwd(), 'uncleaned')
+
     main_df = extractor.process_data()
-    main_df.to_csv(f"uncleaned_{pcapfile.split('.')[0]}.csv", index=False)
+    main_df.to_csv(os.path.join(uncleaned_files_path, f"uncleaned_{pcapfile.split('.')[0]}.csv"), index=False)
 
     # Extract signatures
     signatures = None

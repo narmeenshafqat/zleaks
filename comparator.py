@@ -119,6 +119,37 @@ class Comparator():
             else:
                 final_conclusion += f"{sig}, "
 
+        # Compares for similar mac id in signatures
+        device_mac_id = self.df[(self.df['Source'].str.contains(device_name))]['Mac'].iloc[0]
+
+        if device_mac_id:
+            device_mac_id = ':'.join(device_mac_id.split(':')[:3])
+
+            if len(select) > 1:
+                matched_mac_id = []
+                for sig in select:
+                    temp_df = pd.concat(self.signatures[sig]['signatures'])
+                    sig_mac_id = temp_df[~(temp_df['Src_device'].str.contains('ZC'))]['Mac'].iloc[0]
+                    
+                    if sig_mac_id:
+                        sig_mac_id = ':'.join(sig_mac_id.split(':')[:3])
+                    else:
+                        continue
+                    
+                    if device_mac_id == sig_mac_id:
+                        matched_mac_id.append(sig)
+
+                if len(matched_mac_id) and (len(matched_mac_id) != len(select)):
+                    final_conclusion += "Most correlated with "
+
+                    for k, sig in enumerate(matched_mac_id):
+                        if k == len(matched_mac_id) - 1:
+                            final_conclusion += f"{sig}\n"
+                        elif k == len(matched_mac_id) - 2:
+                            final_conclusion += f"{sig} and "
+                        else:
+                            final_conclusion += f"{sig}, "
+
         return final_conclusion
 
     # Starts the comparator
@@ -137,7 +168,7 @@ class Comparator():
         self.new_signatures = extractor.start_extractor(mapper, self.sig_df)
 
         # Select columns for checking
-        remove_columns = ['Time', 'Timestamp', 'Sequence_number', 'Source', 'Destination', 'Burst', 'Packet_length']
+        remove_columns = ['Time', 'Timestamp', 'Sequence_number', 'Source', 'Destination', 'Burst', 'Packet_length', 'Mac']
         self.cols = [col for col in self.sig_df.columns if col not in remove_columns]
 
         self.compare_signatures()
